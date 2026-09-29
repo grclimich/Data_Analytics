@@ -21,7 +21,7 @@
     -- Creamos la tabla transaction
     CREATE TABLE IF NOT EXISTS transaction (
         id VARCHAR(255) PRIMARY KEY,
-        credit_card_id VARCHAR(15) REFERENCES credit_card(id),
+        credit_card_id VARCHAR(15),
         company_id VARCHAR(20), 
         user_id INT REFERENCES user(id),
         lat FLOAT,
@@ -32,6 +32,8 @@
         FOREIGN KEY (company_id) REFERENCES company(id) 
     );
     
+    
+    
 #Exercici 2
 #Utilitzant JOIN realitzaràs les següents consultes:
 
@@ -39,14 +41,14 @@
 SELECT DISTINCT(co.country) AS paises_ventas
 FROM company AS co
 JOIN transaction AS tr ON tr.company_id=co.id
-WHERE tr.declined = 0 AND tr.amount > 0;
+WHERE tr.declined = 0 AND tr.amount >= 0;
 
 
 # 2.2 Des de quants països es generen les vendes.
 SELECT COUNT(DISTINCT co.country) AS nro_paises_ventas
 FROM company AS co
 INNER JOIN transaction AS tr ON tr.company_id=co.id
-WHERE tr.declined = 0 AND tr.amount>0;
+WHERE tr.declined = 0 AND tr.amount >=0;
 
 
 # 2.3 Identifica la companyia amb la mitjana més gran de vendes.
@@ -66,30 +68,34 @@ LIMIT 1;
 
 # 3.1 Mostra totes les transaccions realitzades per empreses d'Alemanya.
 SELECT *
-FROM transaction AS tr
+FROM transaction
 WHERE EXISTS (
 	SELECT id
 	FROM company 
 	WHERE country='Germany'
-    AND id=tr.company_id # y relacionamos los id de company
+    AND declined=0
+    AND id=company_id # y relacionamos los id de company
     );
 
 
 # 3.2 Llista les empreses que han realitzat transaccions per un amount superior a la mitjana de totes les transaccions.
-SELECT co.company_name, AVG(amount) AS media_ventas
+SELECT
+	(SELECT co.company_name
+     FROM company AS co
+     WHERE co.id = tr.company_id) AS company_name,
+    ROUND(AVG(tr.amount), 2) AS media_ventas
 FROM transaction AS tr
-JOIN company AS co ON co.id=tr.company_id
-WHERE tr.declined = 0 
-AND tr.amount > (
-					SELECT AVG(amount) AS media_ventas
-					FROM transaction
-                    WHERE declined = 0
-                    )
+WHERE tr.declined = 0
+  AND tr.amount > (
+			SELECT AVG(t.amount)
+			FROM transaction AS t
+			WHERE t.declined = 0
+				  )
 GROUP BY tr.company_id
 ORDER BY media_ventas DESC;
 
-#confirmamos la media de ventas = 258.91
-SELECT AVG(amount) AS media_ventas
+#confirmamos la media de ventas = 258.92
+SELECT ROUND(AVG(amount),2) AS media_ventas
 FROM transaction WHERE declined = 0;
 
 
@@ -98,9 +104,7 @@ SELECT company_name AS empresas
 FROM company AS co
 WHERE NOT EXISTS (
     SELECT tr.company_id
-    FROM transaction AS tr
-    WHERE tr.company_id IS NOT NULL #busca todos los id que no esten vacios
-);
+    FROM transaction AS tr);
 
 
 #Exercici 4
@@ -118,21 +122,25 @@ WHERE NOT EXISTS (
     expiring_date VARCHAR(50)
 );
 
+# hacemos el insert con el archivo CSV.
+
 #convertir de texto varchar a formato fecha
 UPDATE credit_card 
 SET expiring_date = STR_TO_DATE(expiring_date, '%m/%d/%y')
 LIMIT 999999;
 #convertir a date
-ALTER TABLE credit_card MODIFY COLUMN expiring_date DATE;
-     
+ALTER TABLE credit_card MODIFY COLUMN expiring_date DATETIME;
+
+# por ultimo, creamos la relacion con la tabla transactions   
+ALTER TABLE transaction   
+ADD CONSTRAINT FOREIGN KEY (credit_card_id) REFERENCES credit_card(id);
 
 #Exercici 5
 #El departament de Recursos Humans ha identificat un error en el número de compte associat a la targeta de crèdit 
 #amb ID CcU-2938. La informació que ha de mostrar-se per a aquest registre és: TR323456312213576817699999. 
 
 SELECT *
-FROM transaction AS tr
-JOIN credit_card AS cr ON cr.id=tr.credit_card_id
+FROM transaction
 WHERE credit_card_id='CcU-2938';
 
 #Actualizamos el iban
@@ -163,9 +171,15 @@ WHERE credit_card_id='CcU-9999';
 #Des de recursos humans et sol·liciten eliminar la columna "pan" de la taula credit_card.
 #Recorda mostrar el canvi realitzat.
 
+#verificamos que exista la columna pan
+SELECT *
+FROM credit_card;
+
+#borramos la columna pan
 ALTER TABLE credit_card
 DROP COLUMN pan;
-#comprobamos
+
+#comprobamos de nuevo que se haya hecho el cambio
 SELECT *
 FROM credit_card;
 
@@ -204,7 +218,7 @@ CREATE TABLE IF NOT EXISTS data.staging_users (
 CREATE TABLE IF NOT EXISTS data.staging_companies (
     company_id VARCHAR(20),
     company_name VARCHAR(255),
-    phone VARCHAR(20),
+    phone VARCHAR(255),
     email VARCHAR(255),
     country VARCHAR(255),
     website VARCHAR(255),
@@ -214,16 +228,16 @@ CREATE TABLE IF NOT EXISTS data.staging_companies (
 
 #creamos la tabla credit cards
 CREATE TABLE IF NOT EXISTS data.staging_credit_cards (
-    id VARCHAR(15),
+    id VARCHAR(20),
     user_id INT,
     iban VARCHAR(255),
     pan VARCHAR(255),
-    pin VARCHAR(10),
-    cvv VARCHAR(10),
+    pin VARCHAR(255),
+    cvv VARCHAR(255),
     track1 VARCHAR(255),
     track2 VARCHAR(255),
     expiring_date VARCHAR(50),
-    card_type VARCHAR(50),
+    card_type VARCHAR(255),
     card_renewal_flag BOOLEAN
 );
 
@@ -231,37 +245,37 @@ CREATE TABLE IF NOT EXISTS data.staging_products
 (
 id VARCHAR(20) PRIMARY KEY,
 product_name VARCHAR(255),
-price VARCHAR(20),
-colour VARCHAR(20),
+price VARCHAR(255),
+colour VARCHAR(255),
 weight DECIMAL(10,2),
-warehouse_id VARCHAR(100),
-category VARCHAR(100),
-brand VARCHAR(100),
-cost VARCHAR(20),
+warehouse_id VARCHAR(255),
+category VARCHAR(255),
+brand VARCHAR(255),
+cost VARCHAR(255),
 launch_date DATE
 );
 
 
 #creamos la tabla transactions
 CREATE TABLE IF NOT EXISTS data.staging_transactions (
-    id VARCHAR(50),
-    card_id VARCHAR(15),
+    id VARCHAR(255),
+    card_id VARCHAR(20),
     business_id VARCHAR(20),
     timestamp DATETIME,
     amount DECIMAL(10,2),
     declined BOOLEAN,
-    product_ids VARCHAR(100),
+    product_ids VARCHAR(255),
     user_id INT,
     lat DECIMAL(15,10),
     longitude DECIMAL(15,10),
     discount_amount DECIMAL(10,2),
     tax_amount DECIMAL(10,2),
     shipping_amount DECIMAL(10,2),
-    channel VARCHAR(100),
-    campaign_id VARCHAR(100),
-    device_type VARCHAR(100),
+    channel VARCHAR(255),
+    campaign_id VARCHAR(255),
+    device_type VARCHAR(255),
     is_international BOOLEAN,
-    decline_reason VARCHAR(100),
+    decline_reason VARCHAR(255),
     distance_km DECIMAL(10,2)
 );
 
@@ -349,7 +363,7 @@ CREATE TABLE IF NOT EXISTS dim_companies
 (
 id VARCHAR(20) PRIMARY KEY,
 company_name VARCHAR(255),
-phone VARCHAR(20),
+phone VARCHAR(255),
 email VARCHAR(255),
 country VARCHAR(255),
 website VARCHAR(255),
@@ -366,16 +380,16 @@ FROM data.staging_companies;
 
 #creamos dim_credit_card con su primary key
 CREATE TABLE IF NOT EXISTS dim_credit_card (
-    id VARCHAR(15) PRIMARY KEY,
+    id VARCHAR(20) PRIMARY KEY,
     user_id INT,
     iban VARCHAR(255),
     pan VARCHAR(255),
-    pin VARCHAR(10),
-    cvv VARCHAR(10),
+    pin VARCHAR(255),
+    cvv VARCHAR(255),
     track1 VARCHAR(255),
     track2 VARCHAR(255),
     expiring_date DATE,
-    card_type VARCHAR(50),
+    card_type VARCHAR(255),
     card_renewal_flag BOOLEAN
 );
 
@@ -390,10 +404,10 @@ FROM data.staging_credit_cards;
 CREATE TABLE IF NOT EXISTS fact_transactions (
     id VARCHAR(50) PRIMARY KEY,
     company_id VARCHAR(20),
-    card_id VARCHAR(15),
+    card_id VARCHAR(20),
     user_id INT,
-    product_ids VARCHAR(100),
-    campaign_id VARCHAR(100),
+    product_ids VARCHAR(255),
+    campaign_id VARCHAR(255),
     timestamp DATETIME, #Fecha original datetime
     tr_date DATE, #Campo adicional fecha
     tr_time TIME, #Campo adicional hora
@@ -404,10 +418,10 @@ CREATE TABLE IF NOT EXISTS fact_transactions (
     discount_amount DECIMAL(10,2),
     tax_amount DECIMAL(10,2),
     shipping_amount DECIMAL(10,2),
-    channel VARCHAR (100),
-    device_type VARCHAR (100),
+    channel VARCHAR (255),
+    device_type VARCHAR (255),
     is_international BOOLEAN,
-    decline_reason VARCHAR(100),
+    decline_reason VARCHAR(255),
     distance_km DECIMAL(10,2),
     
     #creamos las relaciones con las tablas y sus referencias 
@@ -435,30 +449,35 @@ SELECT * FROM bank_transactions.fact_transactions;
 
 #Exercici 9
 #Realitza una subconsulta que mostri tots els usuaris amb més de 80 transaccions utilitzant almenys 2 taules.
-
-SELECT CONCAT(u.name,' ',u.surname) AS usuario, COUNT(*) AS n_transacciones
+SELECT
+    (SELECT u.name
+     FROM dim_users AS u
+     WHERE u.id = tr.user_id) AS usuario,
+    COUNT(*) AS n_transacciones
 FROM fact_transactions AS tr
-JOIN dim_users AS u ON u.id=tr.user_id
-WHERE EXISTS (SELECT user_id
-				FROM fact_transactions
-                WHERE user_id=tr.user_id #relacionamos los id de usuario
-				GROUP BY user_id 
-				HAVING COUNT(*) > 80
-                    )
-GROUP BY tr.user_id,u.name,u.surname
+WHERE EXISTS (
+		SELECT user_id
+		FROM fact_transactions AS t
+		WHERE t.user_id = tr.user_id
+		GROUP BY t.user_id
+		HAVING COUNT(*) > 80
+			  )
+GROUP BY tr.user_id
 ORDER BY n_transacciones DESC;
+
 
 
 
 #Exercici 10
 #Mostra la mitjana d'amount per IBAN de les targetes de crèdit a la companyia Donec Ltd, utilitza almenys 2 taules.
 
-SELECT c.company_name as empresa,cr.iban, AVG(amount) AS media_gasto
+SELECT cr.iban, ROUND(AVG(amount),2) AS media_gasto
 FROM fact_transactions AS tr
 JOIN dim_credit_card AS cr ON cr.id=tr.card_id
 JOIN dim_companies AS c ON c.id=tr.company_id
-WHERE c.company_name ="Donec Ltd" AND tr.declined = 0
-GROUP BY c.company_name,cr.iban
+WHERE c.company_name ="Donec Ltd" 
+AND tr.declined = 0
+GROUP BY cr.iban
 ORDER BY media_gasto DESC;
 
 
@@ -470,11 +489,11 @@ ORDER BY media_gasto DESC;
 #Identifica els cinc dies que es va generar la quantitat més gran d'ingressos a l'empresa per vendes.
 #Mostra la data de cada transacció juntament amb el total de les vendes.
 
-SELECT c.company_name AS empresa, tr_date AS fecha, SUM(amount) as total_ingresos_dia 
+SELECT tr_date AS fecha, ROUND(SUM(amount),2) as total_ingresos_dia 
 FROM fact_transactions AS tr
 JOIN dim_companies AS c ON c.id=tr.company_id
 WHERE declined = 0
-GROUP BY company_id,tr_date
+GROUP BY tr_date
 ORDER BY total_ingresos_dia DESC
 LIMIT 5;
 
@@ -488,7 +507,9 @@ LIMIT 5;
 SELECT c.company_name AS empresa,c.phone,c.country AS pais,tr.tr_date as fecha, tr.amount AS monto_transaccion
 FROM fact_transactions AS tr
 JOIN dim_companies as c ON c.id=tr.company_id
-WHERE tr.amount BETWEEN 350 AND 400 AND tr.tr_date IN('2015-04-29', '2018-07-20','2024-03-13')
+WHERE tr.amount BETWEEN 350 AND 400 
+AND tr.tr_date IN('2015-04-29', '2018-07-20','2024-03-13')
+AND declined = 0
 ORDER BY monto_transaccion DESC;
 
 
@@ -509,6 +530,10 @@ ORDER BY transacciones;
 #Exercici 4
 #Elimina de la taula transaction el registre amb ID 000447FE-B650-4DCF-85DE-C7ED0EE1CAAD de la base de dades.
 
+#primero comprobamos que este el registro
+SELECT * FROM fact_transactions WHERE id='000447FE-B650-4DCF-85DE-C7ED0EE1CAAD';
+
+#Ahora procedemos a eliminar
 DELETE FROM fact_transactions
 WHERE id='000447FE-B650-4DCF-85DE-C7ED0EE1CAAD';
 
@@ -532,14 +557,14 @@ SELECT * FROM fact_transactions WHERE id='000447FE-B650-4DCF-85DE-C7ED0EE1CAAD';
 #creamos la vista
 CREATE VIEW VistaMarketing AS
 SELECT c.company_name AS compañia,c.phone AS telefono,c.country AS pais, 
-ROUND(AVG(tr.amount),2) AS compra_media
+AVG(tr.amount) AS compra_media
 FROM fact_transactions AS tr
 JOIN dim_companies AS c ON c.id=tr.company_id
 WHERE tr.declined = 0
-GROUP BY tr.company_id,c.company_name,c.phone,c.country;
+GROUP BY tr.company_id;
 
 #Consultamos ordenando de mayor a menor compra_media
-SELECT *
+SELECT compañia,telefono,pais,ROUND(compra_media,2) as compra_media
 FROM vistamarketing
 ORDER BY compra_media DESC;
 
@@ -571,14 +596,12 @@ GROUP BY card_id;
 CREATE TABLE IF NOT EXISTS estado_tarjetas_credito (
     card_id VARCHAR(50) PRIMARY KEY,
     estado_tarjeta VARCHAR(20),
-    total_operaciones_declinadas INT,
     FOREIGN KEY (card_id) REFERENCES dim_credit_card(id) #añadimos la referencia con la dim_credit_card
 );
 
 
-
 INSERT INTO estado_tarjetas_credito(
-card_id,estado_tarjeta,total_operaciones_declinadas #Hacemos el insert a traves de la consulta
+card_id,estado_tarjeta #Hacemos el insert a traves de la consulta
 )
 WITH transacciones_tarjeta AS(  #usamos una common table expresion (tabla temporal) que nos permite usar funciones de ventana
 SELECT tr.card_id,tr.declined,tr.timestamp,
@@ -589,8 +612,7 @@ FROM fact_transactions tr
   ) # cerramos la tabla temporal y la usaremos en el siguiente select
 SELECT card_id,
 #usamos un case para crear una columna a partir de la condicion de la suma de declined, si la suma de declined es igual a 3 entonces inactivo caso contrario activo
-CASE WHEN SUM(declined) = 3 THEN 'inactivo'ELSE 'activo'END AS estado_tarjeta, 
-SUM(declined) AS total_operaciones_declinadas #sumamos las operaciones declinadas
+CASE WHEN SUM(declined) = 3 THEN 'inactivo'ELSE 'activo'END AS estado_tarjeta
 FROM transacciones_tarjeta
 WHERE particion <=3 # llamamos al alias de la funcion row_number y aplicamos la condición menor o igual a 3 transacciones 
 GROUP BY card_id;
